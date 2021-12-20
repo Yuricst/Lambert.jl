@@ -7,8 +7,9 @@ using DifferentialEquations
 
 gr()
 
-include("lambert_fast.jl")
-include("twobody.jl")
+psuh!(LOAD_PATH, "../")
+using lambert
+
 
 # initial and final condition
 r1vec = [0.79, 0.0, 0.0]
