@@ -74,11 +74,9 @@ cycler2_problem!, ng, lg, ug = construct_cycler2_problem(
 	mu,
 )
 
-# initial guess
+# bounds on variables
 et0min = 0.0
 et0max = max(psyn, cycle_period)
-x0 = rand(2)
-#[2.0764719984822677, 0.4324772298617246]#  # [(et0min+et0max)/2, 0.4]
 # bounds on variables
 lx = [et0min; 0.0]
 ux = [et0max; 1.0]
@@ -90,60 +88,102 @@ ip_options = Dict(
     "tol" => 1e-6
 )
 
-xopt, fopt, info = minimize(cycler2_problem!, x0, ng; 
-	lx=lx, 
-	ux=ux, 
-	lg=lg, 
-	ug=ug, 
-	solver="ipopt",
-	options=ip_options
-)
+# number of retry
+retry_num = 5
+# initialize storage
+sols = []
+for i = 1:retry_num
+	# random initial guess
+	x0 = rand(2)
+	#[2.0764719984822677, 0.4324772298617246]#  # [(et0min+et0max)/2, 0.4]
 
-println(xopt)
-println(info)
+	xopt, fopt, info = minimize(cycler2_problem!, x0, ng; 
+		lx=lx, 
+		ux=ux, 
+		lg=lg, 
+		ug=ug, 
+		solver="ipopt",
+		options=ip_options
+	)
 
-# view results
-println("min_radii: $min_radii")
-prop1, prop2 = view_cycler2_problem(
-	visits, 
-	cycle_period,
-	body_mus,
-	min_radii,
-	mu,
-	xopt
-)
+	if info == :Solve_Succeeded
+		push!(sols, [xopt, fopt, info])
+		break
+	end
+end
 
-# propagate orbits for plotting
-prop_orb1 = get_plot_orbit(x01, mu, cycle_period)
-prop_orb2 = get_plot_orbit(x02, mu)
+if length(sols)>0
+	# if successful, extract result
+	xopt, fopt, info = sols[1]
 
-posA1,_ = locate_x1(xopt[1])
-posA2,_ = locate_x1(xopt[1] + cycle_period)
-posB,_  = locate_x2(xopt[1] + xopt[2]*cycle_period)
+	# view results
+	println("min_radii: $min_radii")
+	prop1, prop2 = view_cycler2_problem(
+		visits, 
+		cycle_period,
+		body_mus,
+		min_radii,
+		mu,
+		xopt
+	)
 
-# prepare plot
-ptraj = plot(
-	set_aspect=:equal, 
-	legend=false, 
-	size=(400,400),
-	frame_style=:box, 
-	ylim=[-3.0,3.0],
-	xlim=[-3.0,3.0],
-)
-#plot!([-2.0,2.0],[-2.0,2.0],linealpha=0.1)
+	# propagate orbits for plotting
+	prop_orb1 = get_plot_orbit(x01, mu, cycle_period)
+	prop_orb2 = get_plot_orbit(x02, mu)
 
-# planets
-plot!(ptraj, prop_orb1[1,:], prop_orb1[2,:], c=:black)
-plot!(ptraj, prop_orb2[1,:], prop_orb2[2,:], c=:black)
-scatter!(ptraj, [posA1[1]], [posA1[2]], c=:blue, marker=:circle)
-scatter!(ptraj, [posA2[1]], [posA2[2]], c=:green, marker=:circle)
-scatter!(ptraj, [posB[1]], [posB[2]], c=:red, marker=:circle)
+	# key epochs
+	et0 = xopt[1]
+	et1 = xopt[1] + cycle_period*xopt[2]
+	et2 = xopt[1] + cycle_period
 
-# trajectory
-plot!(ptraj, prop1[1,:], prop1[2,:], c=:blue)
-plot!(ptraj, prop2[1,:], prop2[2,:], c=:green)
+	posA_et0, _ = locate_x1(et0)
+	posA_et1, _ = locate_x1(et1)
+	posA_et2, _ = locate_x1(et2)
 
-display(ptraj)
+	posB_et0, _ = locate_x2(et0)
+	posB_et1, _ = locate_x2(et1)
+	posB_et2, _ = locate_x2(et2)
+
+	# prepare plot
+	ptraj = plot(
+		set_aspect=:equal, 
+		legend=false, 
+		size=(400,400),
+		frame_style=:box, 
+		ylim=[-3.0,3.0],
+		xlim=[-3.0,3.0],
+	)
+	#plot!([-2.0,2.0],[-2.0,2.0],linealpha=0.1)
+
+	cs = palette([:purple, :green], 3)
+
+	# planets
+	plot!(ptraj, prop_orb1[1,:], prop_orb1[2,:], c=:black)
+	plot!(ptraj, prop_orb2[1,:], prop_orb2[2,:], c=:black)
+
+	# planets
+	scatter!(ptraj, [posA_et0[1]], [posA_et0[2]], c=cs[1], marker=:circle)
+	scatter!(ptraj, [posA_et1[1]], [posA_et1[2]], c=cs[2], marker=:circle)
+	scatter!(ptraj, [posA_et2[1]], [posA_et2[2]], c=cs[3], marker=:circle)
+
+	scatter!(ptraj, [posB_et0[1]], [posB_et0[2]], c=cs[1], marker=:circle)
+	scatter!(ptraj, [posB_et1[1]], [posB_et1[2]], c=cs[2], marker=:circle)
+	scatter!(ptraj, [posB_et2[1]], [posB_et2[2]], c=cs[3], marker=:circle)
+
+	# initial and final phase
+	plot!(ptraj, [0, posA_et0[1]], [0, posA_et0[2]], c=cs[1], linewidht=0.5)
+	plot!(ptraj, [0, posB_et0[1]], [0, posB_et0[2]], c=cs[1], linewidht=0.5)
+
+	plot!(ptraj, [0, posA_et2[1]], [0, posA_et2[2]], c=cs[3], linewidht=0.5)
+	plot!(ptraj, [0, posB_et2[1]], [0, posB_et2[2]], c=cs[3], linewidht=0.5)
+
+	# trajectory
+	plot!(ptraj, prop1[1,:], prop1[2,:], c=:blue)
+	plot!(ptraj, prop2[1,:], prop2[2,:], c=:red)
+
+	display(ptraj)
+end
+
 println("Done!")
 
 
