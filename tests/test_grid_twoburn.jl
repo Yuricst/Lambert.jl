@@ -9,9 +9,10 @@ using joptimise
 
 gr()
 
-include("lambert_fast.jl")
-include("twobody.jl")
-include("keplerder.jl")
+include("twobody.jl") # for plotting
+
+push!(LOAD_PATH, "../")
+using Lambert
 
 
 # initial and final condition

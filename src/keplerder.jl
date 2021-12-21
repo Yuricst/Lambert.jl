@@ -4,8 +4,6 @@ from G. Der (1996).
 Yuri Shimane, 2021.03.23
 """
 
-include("keplerian_elements.jl")
-
 
 """Hyperbolic sine function"""
 function hypertrig_s(z::Float64)

@@ -4,12 +4,12 @@ Test using Lambert solver
 
 using Plots
 using DifferentialEquations
-
 gr()
 
-psuh!(LOAD_PATH, "../")
-using lambert
+include("twobody.jl") # for plotting
 
+push!(LOAD_PATH, "../")
+using Lambert
 
 # initial and final condition
 r1vec = [0.79, 0.0, 0.0]

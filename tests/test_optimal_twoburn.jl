@@ -2,15 +2,16 @@
 Demonstration of simple two-impulse optimization with Lambert solver
 """
 
-using Plots
 using DifferentialEquations
 using joptimise
-
+using LinearAlgebra
+using Plots
 gr()
 
-include("lambert_fast.jl")
-include("twobody.jl")
-include("keplerder.jl")
+include("twobody.jl") # for plotting
+
+push!(LOAD_PATH, "../")
+using Lambert
 
 
 # initial and final condition
