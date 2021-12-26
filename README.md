@@ -1,10 +1,15 @@
-# lambert.jl
-Fast Lambert problem solver in Julia
+# Lambert.jl
+Fast Lambert problem solver in Julia and associated optimization problem formulation. 
 
 ### Dependencies
+
+The module has dependencies to
 - `LinearAlgebra`, `Printf`
 
-### Basic usage
+The examples also make use of
+- [`joptimise`](https://github.com/Yuricst/joptimise), `Plots`
+
+### Basic Lambert solver
 
 ```julia
 push!(LOAD_PATH, pwd())  # push load path if necessary

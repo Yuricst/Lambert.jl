@@ -2,6 +2,7 @@
 abstract type AbstractLambertOut end
 
 struct FastLambertOut <: AbstractLambertOut
+    μ::Float64
     tof::Float64
     r1::Vector
     r2::Vector
@@ -126,7 +127,7 @@ function lambert_fast(
     c = sqrt(1 + mr2_vec^2 - 2 * mr2_vec * cos(dθ))
 
     # semi-perimeter
-    s = (1 + mr2_vec + c) / 2                     # non-dimensional semi-perimeter
+    s = (1 + mr2_vec + c) / 2   # non-dimensional semi-perimeter
     
     # min.energy semi-major axis
     a_min = s / 2
@@ -249,6 +250,7 @@ function lambert_fast(
     # if failed, return here
     if exitflag == 0
         return FastLambertOut(
+            μ,
             tof * tstar,
             r1_vec * r1,
             r2_vec * r1,
@@ -301,5 +303,24 @@ function lambert_fast(
     v2 = (vr2 * r2n + vt2 * ihcrossr2) * vstar
 
     # construct output
-    return FastLambertOut(tof * tstar, r1_vec * r1, r2_vec * r1, v1, v2, exitflag)
+    return FastLambertOut(μ, tof * tstar, r1_vec * r1, r2_vec * r1, v1, v2, exitflag)
+end
+
+
+function propagate_arc(
+    LambertOut::AbstractLambertOut, 
+    steps::Int=500,
+    tol::Float64=1.e-14,
+    maxiter::Int=20,
+)
+    # take initial state vector
+    x0 = vcat(LambertOut.r1, LambertOut.v1)[:]
+    # construct dense time array
+    ts = LinRange(0.0, LambertOut.tof, steps)
+    # propagate using Kepler-Der
+    sol = zeros(6,steps)
+    for (i,t) in enumerate(ts)
+        sol[:,i] = keplerder_nostm(LambertOut.μ, x0, 0.0, t, tol, maxiter)
+    end
+    return sol
 end

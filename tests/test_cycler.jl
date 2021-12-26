@@ -83,13 +83,13 @@ ux = [et0max; 1.0]
 
 ## run minimizer with IPOPT
 ip_options = Dict(
-    "max_iter" => 2500,   # 1500 ~ 2500
-    "print_level" => 4,
+    "max_iter" => 500,   # 1500 ~ 2500
+    "print_level" => 0,
     "tol" => 1e-6
 )
 
 # number of retry
-retry_num = 5
+retry_num = 10
 # initialize storage
 sols = []
 for i = 1:retry_num
@@ -107,6 +107,7 @@ for i = 1:retry_num
 	)
 
 	if info == :Solve_Succeeded
+		println("Success at try $i")
 		push!(sols, [xopt, fopt, info])
 		break
 	end

@@ -1,30 +1,47 @@
-"""Functions for generating cyclers"""
-
-
-function unpack_cycler2_x(x::Vector)
-	# launch epoch
-	et0 = x[1]
-	# time of flight fraction from body A -> B
-	η = x[2]
-end
+"""Functions for generating cyclers (problems)"""
 
 
 """
+	construct_cycler2_problem(
+		visits::Vector, 
+		cycle_period::Float64,
+		body_mus::Vector,
+		min_radii::Vector,
+		mu::Float64,
+		m1::Int=0,
+		m2::Int=1,
+	)
+
 Construct optimization problem to find 2-body cycler
 Encoding of decision vector: 
 	`x = [et0, η]`
 
-Constraint:
-	- 
+Constraint: 2 equality constraints and 2 inequality constraints
+	[|v∞| at A, |v∞| at B, fly-by radius at A, fly-by radius at B]
 	
 Objective: 
-	`(v∞)^2 at launch`
+	(v∞)^2 at launch
+
+The returned objective function has the signiature compatible to `joptimise`:
+	`cycler2_problem!(g, x) -> x`
+
+# Arguments
+	- `visits::Vector`: vector of two callables `fun(epoch)->pos,vel`
+	- `cycle_period::Float64`: full period of cycler, should be integer multiple of synodic period
+	- `body_mus::Vector`: GM of fly-by bodies
+	- `min_radii::Vector`: minimum fly-by radius of bodies
+	- `mu::Float64`: GM of center body (Sun for interplanetary, or planet for moon-system)
+	- `m1::Int`: number of revolution for Lambert solver, out-bound
+	- `m2::Int`: number of revolution for Lambert solver, in-bound
+
+# Returns:
+	- `Tuple`: `cycler2_problem!::callable`, `ng::Int`, `lg::Vector{Float64}`, `ug::Vector{Float64}`
 """
 function construct_cycler2_problem(
 	visits::Vector, 
 	cycle_period::Float64,
-	body_mus::Vector,
-	min_radii::Vector,
+	body_mus::Vector{Float64},
+	min_radii::Vector{Float64},
 	mu::Float64,
 	m1::Int=0,
 	m2::Int=1,
@@ -118,17 +135,25 @@ function view_cycler2_problem(
 	vinf2_A = res2.v2 - vA2
 
 	# compute fly-by angles
-	δA = acos(dot(vinf1_A, vinf2_A) / (norm(vinf1_A) * norm(vinf2_A)))
-	δB = acos(dot(vinf1_B, vinf2_B) / (norm(vinf1_B) * norm(vinf2_B)))
+	δA = acos_safe(dot(vinf1_A, vinf2_A) / (norm(vinf1_A) * norm(vinf2_A)))
+	δB = acos_safe(dot(vinf1_B, vinf2_B) / (norm(vinf1_B) * norm(vinf2_B)))
 
 	# inequality constraints on fly-by angles
 	rfbA = body_mus[1]/(norm(vinf1_A))^2*(1/sin(δA/2) - 1)
 	rfbB = body_mus[2]/(norm(vinf1_B))^2*(1/sin(δB/2) - 1)
 
-	@printf("δ at A: %3.4f [deg]\n", δA*180/π)
-	@printf("δ at B: %3.4f [deg]\n", δB*180/π)
-	@printf("Fly-by radius at A: %1.4e\n", rfbA)
-	@printf("Fly-by radius at B: %1.4e\n", rfbB)
+	# initial phase angle
+	rB_initial, _ = visits[2](et0)
+	ϕ0 = acos_safe(dot(rA1,rB_initial)/(norm(rA1)*norm(rB_initial)))
+
+	@printf("Total time of flight:     %1.4e\n", cycle_period)
+	@printf("Out-bound time of flight: %1.4e\n", tof_AB)
+	@printf("In-bound time of flight:  %1.4e\n", tof_BA)
+	@printf("Initial phase:            %3.4f [deg]\n", ϕ0*180/π)
+	@printf("δ at A:                   %3.4f [deg]\n", δA*180/π)
+	@printf("δ at B:                   %3.4f [deg]\n", δB*180/π)
+	@printf("Fly-by radius at A:       %1.4e\n", rfbA)
+	@printf("Fly-by radius at B:       %1.4e\n", rfbB)
 
 	# propagate trajectory
 	xA1 = vcat(rA1, res1.v1)[:]
