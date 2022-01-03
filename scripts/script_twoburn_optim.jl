@@ -2,71 +2,74 @@
 Demonstration of simple two-impulse optimization with Lambert solver
 """
 
-using DifferentialEquations
+using SPICE
 using joptimise
 using LinearAlgebra
 using Plots
 gr()
 
-include("twobody.jl") # for plotting
-
 push!(LOAD_PATH, "../")
 using Lambert
 
+# modify paths as necessary!
+if Sys.iswindows()
+    spice_dir = "C:\\Users\\yshimane3\\Documents\\spice"
+elseif Sys.islinux()
+    spice_dir = "/mnt/c/Users/yurio/Documents/spice"
+elseif Sys.isapple()
+    spice_dir = "/Users/yuri/Documents/spice"
+end
 
-# initial and final condition
-x01 = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0]
-x02 = [1.5, 0.0, 0.0004, 0.0, sqrt(1/1.5), 0.0]
+furnsh(joinpath(spice_dir, "lsk", "naif0012.tls"))
+furnsh(joinpath(spice_dir, "spk", "de440.bsp"))
+
+# dynamics constants
+MU_SUN = 1.3271244004193938e11
 mu =  1.0
-m = 0
+lstar = 1.495978707e8  # 1AU in km
+vstar = sqrt(MU_SUN / lstar)
+tstar = lstar / vstar
+
+# initial and final epoch
+et0_str = "2032-01-01T00:00:00.00"
+etf_str = "2034-01-01T00:00:00.00"
+et0 = utc2et(et0_str)
+etf = utc2et(etf_str)
+
+# scaled time-windows
+t0 = 0.0
+tf = (etf - et0)/tstar
 
 function locate_x1(epoch::Float64)
+	# scale epoch
+	et = et0 + epoch*tstar
 	# get position and velocity vector at epoch
-	xf = keplerder_nostm(mu, x01, 0.0, epoch, 1.e-14, 20)
-	return xf[1:3], xf[4:6]
+	sv = spkssb(3, et, "ECLIPJ2000")
+	return sv[1:3]/lstar, sv[4:6]/vstar
 end
 
 function locate_x2(epoch::Float64)
+	# scale epoch
+	et = et0 + epoch*tstar
 	# get position and velocity vector at epoch
-	xf = keplerder_nostm(mu, x02, 0.0, epoch, 1.e-14, 20)
-	return xf[1:3], xf[4:6]
+	sv = spkssb(4, et, "ECLIPJ2000")
+	return sv[1:3]/lstar, sv[4:6]/vstar
 end
-
-
-function rendezvous!(g,x)
-	# unpack initial vector
-	t0, tof = x
-	# get initial and final positions
-	r1vec, v1vec = locate_x1(t0)
-	r2vec, v2vec = locate_x2(t0+tof)
-	# solve Lamert
-	res = lambert_fast(r1vec, r2vec, tof, m, mu)
-	# compute Delta-V costs
-	dv1 = norm(res.v1 - v1vec)
-	dv2 = norm(v2vec - res.v2)
-	# store constraints (if any)
-	g[1] = 0.0
-	return dv1+dv2
-end
-
 
 # initial guess
-t0_guess = 4.0
-tof_guess = 3.0
-x0 = [t0_guess, tof_guess]
+x0 = rand(2)
 # bounds on variables
-lx = [0.0; 0.0]
-ux = [5π; 2π]
-# bounds on constriants
-lg = [0.0]
-ug = [0.0]
-# number of constraints
-ng = 1
+tof_max = 365*86400/tstar
+lx = [t0; 0.0]
+ux = [tf; tof_max]
 
+# get objective function
+visits = [locate_x1, locate_x2]
+rendezvous!, ng, lg, ug = construct_rdv2imp_problem(visits, mu)
 
 ## run minimizer with IPOPT
 ip_options = Dict(
-    "max_iter" => 2500,   # 1500 ~ 2500
+    "max_iter" => 500,   # 1500 ~ 2500
     "print_level" => 5,
     "tol" => 1e-6
 )
@@ -80,46 +83,11 @@ xopt, fopt, info = minimize(rendezvous!, x0, ng;
 	options=ip_options
 )
 
-println(xopt)
 println(info)
 
-# re-construct optimal transfer
-t0, tof = xopt
-
-# get initial and final positions
-r1vec, v1vec = locate_x1(t0)
-r2vec, v2vec = locate_x2(t0+tof)
-
-# solve Lamert
-res = lambert_fast(r1vec, r2vec, tof, m, mu)
-
-# construct problem
-trajprob_fwd = TwoBodyProblem(
-	0.0, 
-	tof, 
-	vcat(r1vec, res.v1)[:], 
-	mu
-)
-# propagate transfer arc
-sol_fwd = propagate(trajprob_fwd, Tsit5())
-
-# propagate initial and final orbit
-trajprob_r1 = TwoBodyProblem(
-	0.0, 
-	get_period(vcat(r1vec, v1vec)[:], mu), 
-	vcat(r1vec, v1vec)[:], 
-	mu
-)
-sol_r1 = propagate(trajprob_r1, Tsit5())
-
-trajprob_r2 = TwoBodyProblem(
-	0.0, 
-	get_period(vcat(r2vec, v2vec)[:], mu), 
-	vcat(r2vec, v2vec)[:], 
-	mu
-)
-sol_r2 = propagate(trajprob_r2, Tsit5())
-
+# view result
+prop_traj, prop_r1, prop_r2 = view_rdv2imp_problem(
+	xopt, visits, et0, tstar, vstar)
 
 # prepare plot
 ptraj = plot(
@@ -128,21 +96,22 @@ ptraj = plot(
 	legend=false, 
 	frame_style=:box, 
 )
-# inital and final orbit
-plot!(ptraj, sol_r1, vars=(1,2), linestyle=:dash)
-plot!(ptraj, sol_r2, vars=(1,2), linestyle=:dash)
 
 # intial and final position
-scatter!(ptraj, [r1vec[1]], [r1vec[2]], color=:green)
-scatter!(ptraj, [r2vec[1]], [r2vec[2]], color=:red)
+r1vec = prop_r1[:,1]
+r2vec = prop_r2[:,1]
+scatter!(ptraj, [r1vec[1]], [r1vec[2]], c=:blue)
+scatter!(ptraj, [r2vec[1]], [r2vec[2]], c=:crimson)
 plot!(ptraj, [0.0, r1vec[1]], [0.0, r1vec[2]], color=:black)
 plot!(ptraj, [0.0, r2vec[1]], [0.0, r2vec[2]], color=:black)
 
 # transfer trajectory
-plot!(ptraj, sol_fwd, vars=(1,2))
+plot!(ptraj, prop_traj[1,:], prop_traj[2,:], linestyle=:dash)
+#plot!(ptraj, sol_fwd, vars=(1,2))
 
-# scaing plot
-#scatter!(ptraj, [-2.0,2.0], [-2.0,2.0], alpha=0.0)
+# inital and final orbit
+plot!(ptraj, prop_r1[1,:], prop_r1[2,:], linestyle=:dash, c=:blue)
+plot!(ptraj, prop_r2[1,:], prop_r2[2,:], linestyle=:dash, c=:crimson)
 
 display(ptraj)
 println("Done!")

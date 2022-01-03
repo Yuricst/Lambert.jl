@@ -1,45 +1,37 @@
 """
-Demonstration of simple two-impulse optimization with Lambert solver
+Test spice-based rdv problem
 """
 
 using joptimise
 using LinearAlgebra
 using Plots
+using SPICE
 gr()
 
 push!(LOAD_PATH, "../")
 using Lambert
 
-
-# initial and final condition
-x01 = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0]
-x02 = [1.5, 0.0, 0.0004, 0.0, sqrt(1/1.5), 0.0]
-mu =  1.0
-m = 0
-
-function locate_x1(epoch::Float64)
-	# get position and velocity vector at epoch
-	xf = keplerder_nostm(mu, x01, 0.0, epoch, 1.e-14, 20)
-	return xf[1:3], xf[4:6]
+# modify paths as necessary!
+if Sys.iswindows()
+    spice_dir = "C:\\Users\\yshimane3\\Documents\\spice"
+elseif Sys.islinux()
+    spice_dir = "/mnt/c/Users/yurio/Documents/spice"
+elseif Sys.isapple()
+    spice_dir = "/Users/yuri/Documents/spice"
 end
+# get spice kernels
+furnsh(joinpath(spice_dir, "lsk", "naif0012.tls"))
+furnsh(joinpath(spice_dir, "spk", "de440.bsp"))
 
-function locate_x2(epoch::Float64)
-	# get position and velocity vector at epoch
-	xf = keplerder_nostm(mu, x02, 0.0, epoch, 1.e-14, 20)
-	return xf[1:3], xf[4:6]
-end
-
-# get objective function
-visits = [locate_x1, locate_x2]
-rendezvous!, ng, lg, ug = construct_rdv2imp_problem(visits, mu)
-
-# initial guess
-t0_guess = 4.0
-tof_guess = 3.0
-x0 = [t0_guess, tof_guess]
-# bounds on variables
-lx = [0.0; 0.0]
-ux = [5π; 2π]
+# construct problem
+et0_str="2024-01-01T00:00:00.00" 
+etf_str="2028-01-01T00:00:00.00"
+rendezvous!, lx, ux, ng, lg, ug, visits, canonical_params = construct_rdv2imp_spice_problem(
+	[3,4],
+	et0_str,
+	etf_str,
+)
+x0 = rand(2)
 
 ## run minimizer with IPOPT
 ip_options = Dict(
@@ -57,11 +49,11 @@ xopt, fopt, info = minimize(rendezvous!, x0, ng;
 	options=ip_options
 )
 
-println(xopt)
 println(info)
 
 # view result
-prop_traj, prop_r1, prop_r2 = view_rdv2imp_problem(xopt, visits, lx)
+prop_traj, prop_r1, prop_r2 = view_rdv2imp_problem(
+	xopt, visits, canonical_params.et0, canonical_params.tstar, canonical_params.vstar)
 
 # prepare plot
 ptraj = plot(
@@ -89,6 +81,5 @@ plot!(ptraj, prop_r2[1,:], prop_r2[2,:], linestyle=:dash, c=:crimson)
 
 display(ptraj)
 println("Done!")
-
 
 
