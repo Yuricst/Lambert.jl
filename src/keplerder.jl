@@ -47,7 +47,7 @@ end
 
 
 """Function computes Kepler's time equation and its derivatives in G. Der 1996 form"""
-function kepler_der(
+function kepler_der_time_eqn(
     x::Float64,
     alpha::Float64,
     t::Float64,
@@ -198,7 +198,7 @@ function keplerder(
     count = 0
     while count < maxiter
         # evaluate function
-        Fun, dF, d2F = kepler_der(x0, alpha, t, t0, mu, norm(r0), sigma0)
+        Fun, dF, d2F = kepler_der_time_eqn(x0, alpha, t, t0, mu, norm(r0), sigma0)
         if abs(Fun) < tol
             break
         end
@@ -308,7 +308,7 @@ function keplerder_nostm(
     Fun = 1.0  # FIXME - need storage
     while count < maxiter
         # evaluate function
-        Fun, dF, d2F = kepler_der(x0, alpha, t, t0, mu, norm(r0), sigma0)
+        Fun, dF, d2F = kepler_der_time_eqn(x0, alpha, t, t0, mu, norm(r0), sigma0)
         if abs(Fun) < tol
             break
         end
@@ -350,3 +350,49 @@ function keplerder_nostm(
     state1 = fullmap * state0
     return state1
 end
+
+
+
+"""
+    keplerder_nostm(
+        mu::Float64, 
+        state0::Vector{Float64}, 
+        t0::Float64, 
+        ts::Union{Vector{Float64}, LinRange{Float64}}, 
+        tol::Float64=1.e-14, 
+        maxiter::Int=20,
+    )
+
+Function computes position at future times ts, without computing STM
+Formulation from G. Der formulation.
+
+# Arguments
+    `mu::Float64`: gravitational parameter
+    `state0::Vector{Float64}`: initial state [x,y,z,vx,vy,vz]
+    `t0::Float64`: initial time at state0
+    `t::Float64`: final time
+    `tol::Float64`: tolerance on Laguerre-correction, suggest 1.e-14
+    `maxiter::Int`: max allowed iteration allowed for Laguerre-correction, suggest 10
+
+# Returns
+    `(array)`: final state
+"""
+function keplerder_nostm(
+    mu::Float64,
+    state0::Vector{Float64},
+    t0::Float64,
+    ts::Union{Vector{Float64}, LinRange{Float64}},
+    tol::Float64=1.e-14,
+    maxiter::Int=20,
+)
+    # initialize array
+    prop = zeros(6,length(ts))
+    # range of times
+    for (idx,t) in enumerate(ts)
+        prop[:,idx] = keplerder_nostm(mu, state0, t0, t, tol, maxiter)
+    end
+    return prop
+end
+
+
+

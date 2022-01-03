@@ -110,7 +110,7 @@ function view_cycler2_problem(
 	m1::Int=0,
 	m2::Int=1,
 	steps::Int=500
-	)
+)
 	# unpack decision vector
 	et0, η = x[1], x[2]
 	tof_AB = cycle_period*η

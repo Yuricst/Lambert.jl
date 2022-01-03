@@ -9,6 +9,7 @@ include("keplerder.jl")
 include("lambert_fast.jl")
 
 include("optim/cycler.jl")
+include("optim/rdv_problem.jl")
 include("optim/mga_problem.jl")
 include("optim/mga1dsm_problem.jl")
 include("optim/lamblt_problem.jl")
@@ -31,6 +32,7 @@ export get_inclination,
     modifiedEquinoctial_to_keplerian
 export keplerder, keplerder_nostm
 
+export construct_rdv2imp_problem, view_rdv2imp_problem
 export construct_mga_problem
 export construct_mga1dsm_problem
 export construct_cycler2_problem, view_cycler2_problem

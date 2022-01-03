@@ -30,7 +30,8 @@ function construct_mga_problem(
     body_radii::Vector,
     h_safes::Vector,
     mu::Float64,
-    rev_max = 1,
+    rev_max::Int=1,
+    min_periapsis::Float64=0.0,
 )
 
     # number of phases
