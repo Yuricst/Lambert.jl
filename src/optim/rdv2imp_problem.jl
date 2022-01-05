@@ -1,4 +1,15 @@
 """
+Impulsive rendez-vous problems with 2 impulses
+"""
+
+
+"""
+	function construct_rdv2imp_problem(
+		visits::Vector,
+	    mu::Float64=1.0,
+	    rev_max::Int=0,
+	)
+
 Construct two-impulse rendez-vous problem
 """
 function construct_rdv2imp_problem(
@@ -6,7 +17,6 @@ function construct_rdv2imp_problem(
     mu::Float64=1.0,
     rev_max::Int=0,
 )
-
 	# constraints
 	ng = 1   # place-holder constraint
 	lg = [0.0]
@@ -33,7 +43,14 @@ end
 
 
 """
-Construct two-impulse rendez-vous problem with max fly epoch
+	function construct_rdv2imp_problem_tfcon(
+		visits::Vector,
+		tf_max::Float64,  # final arrival epoch
+	    mu::Float64=1.0,
+	    rev_max::Int=0,
+	)
+
+Construct two-impulse rendez-vous problem with max arrival epoch
 """
 function construct_rdv2imp_problem_tfcon(
 	visits::Vector,
@@ -41,7 +58,6 @@ function construct_rdv2imp_problem_tfcon(
     mu::Float64=1.0,
     rev_max::Int=0,
 )
-
 	# constraints
 	ng = 1   # FIXME
 	lg = [0.0]
@@ -68,6 +84,17 @@ end
 
 
 """
+	function view_rdv2imp_problem(
+		x::Vector,
+		visits::Vector,
+		et0::Float64=0.0,
+		tstar::Float64=1.0,
+	    vstar::Float64=1.0,
+	    use_spice::Bool=true,
+	    mu::Float64=1.0,
+	    rev_max::Int=0,
+	)
+
 View solution of rdv2imp problem
 """
 function view_rdv2imp_problem(
@@ -79,7 +106,7 @@ function view_rdv2imp_problem(
     use_spice::Bool=true,
     mu::Float64=1.0,
     rev_max::Int=0,
-)	
+)
 	# unpack initial vector
 	t0, tof = x
 	# get initial and final positions

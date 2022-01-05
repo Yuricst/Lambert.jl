@@ -3,79 +3,356 @@ MGA problem, no DSM
 """
 
 
+"""
+    unpack_mga1dsm_x(x::Vector, np::Int)
+
+Unpack decision vector for mga1dsm problem
+"""
 function unpack_mga1dsm_x(x::Vector, np::Int)
     # launch parameters
     t0 = x[1]
     # phase parameters
+    p_phases = []
     tofs = []
-    pumps = []
-    cranks = []
     for i = 1:np
-        push!(tofs, x[1+i+3*(i-1)])
-        if i < np   # if not final node, also store pump and crank angles
-            push!(pumps, x[1+i+1+3*(i-1)])
-            push!(cranks, x[1+i+2+3*(i-1)])
+        if i == 1
+            push!(p_phases, x[2+(i-1)*5:1+5i])
+            push!(tofs, x[6])
+        else
+            push!(p_phases, x[7+(i-2)*4:4+6(i-1)])
+            push!(tofs, x[6+4(i-1)])
         end
     end
-    return t0, tofs, pumps, cranks
+    return t0, p_phases, tofs
+end
+
+
+
+"""
+    function flyby_hyperbolic(
+        v0::Vector{Float64}, 
+        vp::Vector{Float64},
+        rp::Float64,
+        β::Float64,
+        μ_body::Float64,
+        Δv::Float64=0.0,
+    )
+
+Patched-conics hyperbolic fly-by
+"""
+function flyby_hyperbolic(
+    v0::Vector{Float64}, 
+    vp::Vector{Float64},
+    rp::Float64,
+    β::Float64,
+    μ_body::Float64,
+    Δv::Float64=0.0,
+)
+    vinf0 = v0 - vp
+    vinf0_mag = norm(vinf0)
+    ecc = 1 + rp/μ_body * vinf0_mag^2
+    δ = asin_safe(1/ecc)
+    vinf1 = (vinf0_mag+Δv)*[cos(δ), cos(β)*sin(δ), sin(β)*sin(δ)]
+    return vinf1 + vp
 end
 
 
 """
-Construct MGA-1DSM problem
-"""
-function construct_mga1dsm_problem(visits::Vector, mu, vinf0_max, rev_max = 1)
+    function construct_mga1dsm_problem(
+        visits::Vector, 
+        body_mus::Vector,
+        body_radii::Vector,
+        h_safes::Vector,
+        mu::Float64, 
+        vinf0_max::Float64=0.0, 
+        rev_max::Int=0
+    )
 
+Construct MGA-1DSM problem, direct encoding
+See for reference: 
+- https://esa.github.io/pykep/documentation/trajopt.html#pykep.trajopt.mga_1dsm
+- https://www.esa.int/gsp/ACT/doc/MAD/pub/ACT-RPR-MAD-2010-(CambridgePress)GlobalOptimizationAndSpacePruningForSpacecraftTrajectoryDesign.pdf
+"""
+function construct_mga1dsm_problem(
+    visits::Vector, 
+    mu::Float64,
+    t0_bnds::Vector{Float64},
+    tof_max::Float64, 
+    vinf0_max::Float64,
+    r_bodies::Vector{Float64}=[1.e-6],
+    μ_bodies::Vector{Float64}=[1.e-6],
+    add_vinf_dep::Bool=false,
+    add_vinf_arr::Bool=true,
+    rev_max::Int=0,
+    η_lb::Float64=0.1,
+    η_ub::Float64=0.9,
+)
     # number of phases
     np = length(visits) - 1
 
-    """MGA problem objective function"""
-    function mga_problem!(g, x)
-        # unpack decision vector
-        t0, tofs, pumps, cranks = unpack_mga_x(x, np)
+    # bounds on decision vector
+    lx = vcat([t0_bnds[1]], [0.0, 0.0, 0.0, η_lb, 0.0])[:]
+    ux = vcat([t0_bnds[2]], [1.0, 1.0, vinf0_max, η_ub, tof_max])[:]
+    if np > 1  # append to bounds vector
+        for j = 1:np-1
+            lx = vcat(lx, [-π, 0.0, η_lb, 0.0])[:]
+            ux = vcat(ux, [ π, Inf, η_ub, tof_max])[:]
+        end
+    end
 
-        # get states to visit
+    # constraints information (on total time of flight)
+    ng = 1
+    lg = [-Inf]
+    ug = [0.0]
+
+    # storage for previous lambert velocity
+    lamb_prev_vf = [0.0,0.0,0.0]
+
+    """MGA problem objective function"""
+    function mga1dsm_problem!(g, x)
+        # unpack decision vector
+        t0, p_phases, tofs = unpack_mga1dsm_x(x, np)
+
+        # get nodes to visit
         visit_nodes = []
         for (k, visit) in enumerate(visits)
-            push!([visit(t0 + sum(tofs[1:k]))])
+            if k == 1
+                epoch = t0
+            else
+                epoch = t0 + sum(tofs[1:k-1])
+            end
+            push!(visit_nodes, visit(epoch))
         end
 
         # solve consecutive Lambert problems
-        dv_total = 0.0
+        if add_vinf_dep == true
+            dv_total = 0.0 + p_phases[1][3]  # add v-inf at departure a priori
+        else
+            dv_total = 0.0
+        end
         for k = 1:np
-            # get position vectors
-            r1vec = visit_nodes[k][1]
-            r2vec = visit_nodes[k][1]
+            # unpack phase parameters
+            if k == 1
+                u, v, vinf0, η, tof = p_phases[k]
+            else
+                β, rp_rV, η, tof = p_phases[k]
+            end
+
+            # get planet positions
+            r1vec, v1vec = visit_nodes[k]
+            r2vec, v2vec = visit_nodes[k+1]
+
+            # if initial phase, apply v-infinity
+            if k == 1
+                # convert sphere point picking parameters u and v
+                θ = 2π*u
+                ϕ = acos_safe(2v - 1) - π/2
+                v1vec = v1vec + vinf0*[cos(θ)*cos(ϕ), sin(θ)*cos(ϕ), sin(ϕ)]
+            # else, apply fly-by
+            else
+                v1vec = flyby_hyperbolic(
+                    lamb_prev_vf,
+                    v1vec, 
+                    rp_rV*r_bodies[k],
+                    β,
+                    μ_bodies[k],
+                )
+            end
+
+            # propagate forward initial state
+            sv_before_dsm = keplerder_nostm(
+                mu,
+                vcat(r1vec, v1vec)[:], 
+                0.0,
+                tof*η,
+                1e-14,
+                20,
+            )
 
             # solve Lambert problem
-            res_list = []
-            for klmb = 1:rev_max+1
-                push!(res_list, lambert_fast(r1vec, r2vec, tofs[k], klmb - 1, mu))
+            res = lambert_fast(
+                sv_before_dsm[1:3], 
+                r2vec, 
+                tof*(1-η), 
+                rev_max, 
+                mu
+            )
+            lamb_prev_vf[:] = res.v2
+
+            # append dsm cost
+            dsm_cost = norm(res.v1 - sv_before_dsm[4:6])
+            dv_total += dsm_cost
+
+            # append final velocity mismatch cost
+            if add_vinf_arr == true || k == np
+                final_dv = norm(v2vec - res.v2)
+                dv_total += final_dv
             end
-
-            # compute cost
-            dv_scen = []
-            for res in res_list
-                # for launch node, simply compute launch v-infinity
-                if k == 1
-                    v1vec = visit_nodes[k][2]
-                    push!(dv_scen, res.v1 - v1vec)
-
-                    # for fly-by node, use fly-by
-                else
-                end
-            end
-
-            # keep minimum
-            dv_total += minimum(dv_scen)
         end
 
-        # store constraints
+        # store constraints on total tof
+        g[1] = sum(tofs) - tof_max
 
         # return objective
-        return
+        return dv_total
     end
 
     # return generated callable
-    return mga_problem!
+    return mga1dsm_problem!, lx, ux, ng, lg, ug
+end
+
+
+
+function view_mga1dsm_problem(
+    x::Vector,
+    visits::Vector, 
+    mu::Float64,
+    t0_bnds::Vector{Float64},
+    tof_max::Float64, 
+    vinf0_max::Float64,
+    r_bodies::Vector{Float64}=[1.e-6],
+    μ_bodies::Vector{Float64}=[1.e-6],
+    add_vinf_dep::Bool=false,
+    add_vinf_arr::Bool=true,
+    rev_max::Int=0,
+    η_lb::Float64=0.1,
+    η_ub::Float64=0.9,
+)
+    # number of phases
+    np = length(visits) - 1
+
+    # unpack decision vector
+    t0, p_phases, tofs = unpack_mga1dsm_x(x, np)
+
+    # get nodes to visit
+    visit_nodes = []
+    for (k, visit) in enumerate(visits)
+        if k == 1
+            epoch = t0
+        else
+            epoch = t0 + sum(tofs[1:k-1])
+        end
+        push!(visit_nodes, visit(epoch))
+    end
+
+    # storage for analysis
+    kepler_res = []
+    lamb_res = []
+    dsm_vectors = []
+    planets = []
+
+    # storage for previous lambert velocity
+    lamb_prev_vf = [0.0,0.0,0.0]
+
+    @printf("***** MGA1DSM transfer *****")
+    println("add_vinf_dep: $add_vinf_dep, add_vinf_arr: $add_vinf_arr")
+    @printf("Departure epoch:      %1.4e\n", t0)
+    @printf("Total time of flight: %1.6e\n", sum(tofs))
+    @printf("Launch ΔV:            %1.6f\n",p_phases[1][3])
+
+    # solve consecutive Lambert problems
+    dv_total = 0.0 + p_phases[1][3]  # add v-inf at departure a priori
+    for k = 1:np
+        # unpack phase parameters
+        if k == 1
+            u, v, vinf0, η, tof = p_phases[k]
+        else
+            β, rp_rV, η, tof = p_phases[k]
+        end
+
+        # get planet positions
+        r1vec, v1vec = visit_nodes[k]
+        r2vec, v2vec = visit_nodes[k+1]
+
+        # if initial phase, apply v-infinity
+        if k == 1
+            # convert sphere point picking parameters u and v
+            θ = 2π*u
+            ϕ = acos_safe(2v - 1) - π/2
+            v1vec = v1vec + vinf0*[cos(θ)*cos(ϕ), sin(θ)*cos(ϕ), sin(ϕ)]
+        # else, apply fly-by
+        else
+            v1vec = flyby_hyperbolic(
+                lamb_prev_vf,
+                v1vec, 
+                rp_rV*r_bodies[k],
+                β,
+                μ_bodies[k],
+            )
+        end
+
+        # propagate forward initial state
+        sv_before_dsm = keplerder_nostm(
+            mu,
+            vcat(r1vec, v1vec)[:], 
+            0.0,
+            tof*η,
+            1e-14,
+            20,
+        )
+        # propagate over interval for storing and plotting
+        kepprop = keplerder_nostm(
+            mu, 
+            vcat(r1vec, v1vec)[:], 
+            0.0, 
+            LinRange(0.0, tof*η, 500), 
+            1.e-14, 
+            20
+        )
+
+        # solve Lambert problem
+        res = lambert_fast(
+            sv_before_dsm[1:3], 
+            r2vec, 
+            tof*(1-η), 
+            rev_max, 
+            mu
+        )
+        lamb_prev_vf[:] = res.v2
+
+        # append cost
+        dsm_cost = norm(res.v1 - sv_before_dsm[4:6])
+        dv_total += dsm_cost
+
+        # append final velocity mismatch cost
+        if add_vinf_arr == true || k == np
+            final_dv = norm(v2vec - res.v2)
+            dv_total += final_dv
+        end
+
+        # append to lists
+        push!(kepler_res, kepprop)
+        push!(lamb_res, res)
+        push!(dsm_vectors, res.v1 - sv_before_dsm[4:6])
+
+        # propagate initial and final orbit of phase
+        r1vec, v1vec = visit_nodes[k]  # re-write for planet plotting
+        prop_r1 = keplerder_nostm(
+            mu,
+            vcat(r1vec, v1vec)[:],
+            0.0,
+            LinRange(0.0, get_period(vcat(r1vec, v1vec)[:], mu), 500),
+        )
+        push!(planets, prop_r1)
+        if k == np
+            prop_r2 = keplerder_nostm(
+                mu,
+                vcat(r2vec, v2vec)[:],
+                0.0,
+                LinRange(0.0, get_period(vcat(r2vec, v2vec)[:], mu), 500),
+            )
+            push!(planets, prop_r2)
+        end
+
+        @printf("Leg %1.0f: \n",k)
+        @printf("   DSM cost: %1.6e\n",dsm_cost)
+        @printf("   Time of flight: %1.6e\n",tof)
+        @printf("   Time until DSM: %1.6e\n",tof*η)
+        @printf("   η:              %1.6e\n",η)
+        if k == np
+            @printf("Arrival ΔV:           %1.6f\n",norm(v2vec - res.v2))
+        end
+    end
+
+    return visit_nodes, kepler_res, lamb_res, planets
 end

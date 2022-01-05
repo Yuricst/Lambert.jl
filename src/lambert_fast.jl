@@ -23,22 +23,6 @@ function pretty(LambertOut::AbstractLambertOut)
 end
 
 
-function sqrt_vector(vec)
-    return [sqrt(el) for el in vec]
-end
-
-
-function sin_vec(vec)
-    return [sin(el) for el in vec]
-end
-
-
-function acos_safe(val)
-    return acos(max(-1.0, min(1.0, val)))
-end
-
-
-
 """
     lambert_fast(
         r1_vec::Vector,
@@ -318,9 +302,9 @@ function propagate_arc(
     # construct dense time array
     ts = LinRange(0.0, LambertOut.tof, steps)
     # propagate using Kepler-Der
-    sol = zeros(6,steps)
-    for (i,t) in enumerate(ts)
-        sol[:,i] = keplerder_nostm(LambertOut.μ, x0, 0.0, t, tol, maxiter)
-    end
-    return sol
+    # sol = zeros(6,steps)
+    # for (i,t) in enumerate(ts)
+    #     sol = keplerder_nostm(LambertOut.μ, x0, 0.0, ts, tol, maxiter)
+    # end
+    return keplerder_nostm(LambertOut.μ, x0, 0.0, ts, tol, maxiter)
 end
