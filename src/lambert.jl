@@ -1,6 +1,5 @@
 module Lambert
 
-
 using LinearAlgebra
 using Printf
 using SPICE
@@ -10,6 +9,7 @@ include("keplerian_elements.jl")
 include("keplerder.jl")
 include("lambert_fast.jl")
 include("canonical.jl")
+include("spice_helper.jl")
 
 include("optim/cycler.jl")
 include("optim/rdv2imp_problem.jl")
@@ -34,6 +34,9 @@ export get_inclination,
     keplerian_to_modifiedEquinoctial,
     modifiedEquinoctial_to_keplerian
 export keplerder, keplerder_nostm
+
+export get_spice_locate_function
+
 export construct_rdv2imp_problem,
     construct_rdv2imp_problem_tfcon, view_rdv2imp_problem, construct_rdv2imp_spice_problem
 export construct_mga_problem

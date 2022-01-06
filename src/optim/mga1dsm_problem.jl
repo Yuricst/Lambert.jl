@@ -86,16 +86,20 @@ function construct_mga1dsm_problem(
     rev_max::Int=0,
     η_lb::Float64=0.1,
     η_ub::Float64=0.9,
+    tof_min_ratio::Float64=0.005,
 )
     # number of phases
     np = length(visits) - 1
 
+    # define minimum tof
+    tof_min = tof_min_ratio*tof_max
+
     # bounds on decision vector
-    lx = vcat([t0_bnds[1]], [0.0, 0.0, 0.0, η_lb, 0.0])[:]
+    lx = vcat([t0_bnds[1]], [0.0, 0.0, 0.0, η_lb, tof_min])[:]
     ux = vcat([t0_bnds[2]], [1.0, 1.0, vinf0_max, η_ub, tof_max])[:]
     if np > 1  # append to bounds vector
         for j = 1:np-1
-            lx = vcat(lx, [-π, 0.0, η_lb, 0.0])[:]
+            lx = vcat(lx, [-π, 0.0, η_lb, tof_min])[:]
             ux = vcat(ux, [ π, Inf, η_ub, tof_max])[:]
         end
     end
@@ -218,6 +222,47 @@ function view_mga1dsm_problem(
     η_lb::Float64=0.1,
     η_ub::Float64=0.9,
 )
+    # create dummy canonical parameters
+    DummyCP = SunEarthCanonical(1.0, 1.0, 1.0, 0.0)
+    view_mga1dsm_problem(
+        DummyCP,
+        x,
+        visits,
+        mu,
+        t0_bnds,
+        tof_max, 
+        vinf0_max,
+        r_bodies,
+        μ_bodies,
+        add_vinf_dep,
+        add_vinf_arr,
+        rev_max,
+        η_lb,
+        η_ub,
+    )
+end
+
+
+
+"""
+View result from mga1dsm problem
+"""
+function view_mga1dsm_problem(
+    cparams::CanonicalParameters,
+    x::Vector,
+    visits::Vector, 
+    mu::Float64,
+    t0_bnds::Vector{Float64},
+    tof_max::Float64, 
+    vinf0_max::Float64,
+    r_bodies::Vector{Float64}=[1.e-6],
+    μ_bodies::Vector{Float64}=[1.e-6],
+    add_vinf_dep::Bool=false,
+    add_vinf_arr::Bool=true,
+    rev_max::Int=0,
+    η_lb::Float64=0.1,
+    η_ub::Float64=0.9,
+)
     # number of phases
     np = length(visits) - 1
 
@@ -244,14 +289,18 @@ function view_mga1dsm_problem(
     # storage for previous lambert velocity
     lamb_prev_vf = [0.0,0.0,0.0]
 
-    @printf("***** MGA1DSM transfer *****")
+    println("***** MGA1DSM transfer *****")
     println("add_vinf_dep: $add_vinf_dep, add_vinf_arr: $add_vinf_arr")
-    @printf("Departure epoch:      %1.4e\n", t0)
-    @printf("Total time of flight: %1.6e\n", sum(tofs))
-    @printf("Launch ΔV:            %1.6f\n",p_phases[1][3])
+    @printf("Departure epoch:      %s\n", et2utc(cparams.et0+t0*cparams.tstar,"C",0))
+    @printf("Total time of flight: %1.6e\n", sum(tofs)*cparams.tstar/86400)
+    @printf("Departure ΔV:         %1.6f\n",p_phases[1][3]*cparams.vstar)
 
     # solve consecutive Lambert problems
-    dv_total = 0.0 + p_phases[1][3]  # add v-inf at departure a priori
+    if add_vinf_dep == true
+        dv_total = 0.0 + p_phases[1][3]  # add v-inf at departure a priori
+    else
+        dv_total = 0.0
+    end
     for k = 1:np
         # unpack phase parameters
         if k == 1
@@ -315,7 +364,7 @@ function view_mga1dsm_problem(
         dv_total += dsm_cost
 
         # append final velocity mismatch cost
-        if add_vinf_arr == true || k == np
+        if add_vinf_arr == true && k == np
             final_dv = norm(v2vec - res.v2)
             dv_total += final_dv
         end
@@ -345,14 +394,16 @@ function view_mga1dsm_problem(
         end
 
         @printf("Leg %1.0f: \n",k)
-        @printf("   DSM cost: %1.6e\n",dsm_cost)
-        @printf("   Time of flight: %1.6e\n",tof)
-        @printf("   Time until DSM: %1.6e\n",tof*η)
+        @printf("   DSM cost:       %1.6e\n",dsm_cost*cparams.vstar)
+        @printf("   Time of flight: %1.6e\n",tof*cparams.tstar/86400)
+        @printf("   Time until DSM: %1.6e\n",tof*η*cparams.tstar/86400)
         @printf("   η:              %1.6e\n",η)
-        if k == np
-            @printf("Arrival ΔV:           %1.6f\n",norm(v2vec - res.v2))
+        if add_vinf_arr == true && k == np
+            @printf("Arrival ΔV:           %1.6f\n",final_dv*cparams.vstar)
         end
     end
-
+    @printf("Total ΔV:             %1.6f\n",dv_total*cparams.vstar)
+    # return results for plotting etc
     return visit_nodes, kepler_res, lamb_res, planets
 end
+

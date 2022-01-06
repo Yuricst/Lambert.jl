@@ -1,50 +1,52 @@
 """
-Test with mga1dsm with 1 fly-by
+Test with mga1dsm with 1 fly-by, using SPICE ephemeris
 """
 
 using joptimise
 using LinearAlgebra
+using SPICE
 using Plots
 gr()
 
 push!(LOAD_PATH, "../")
 using Lambert
 
+# modify paths as necessary!
+if Sys.iswindows()
+    spice_dir = "C:\\Users\\yshimane3\\Documents\\spice"
+elseif Sys.islinux()
+    spice_dir = "/mnt/c/Users/yurio/Documents/spice"
+elseif Sys.isapple()
+    spice_dir = "/Users/yuri/Documents/spice"
+end
+# get spice kernels
+furnsh(joinpath(spice_dir, "lsk", "naif0012.tls"))
+furnsh(joinpath(spice_dir, "spk", "de440.bsp"))
 
-# initial and final condition
-x01 = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0]
-x02 = [1.5, 0.0, 0.0004, 0.0, sqrt(1/1.5), 0.0]
-x03 = [0.0, 2.1, 0.002, -sqrt(1/2.1), 0.0, 0.0]
+# launch window
+et0_str = "2022-01-01T00:00:00.00"
+etf_str = "2023-01-01T00:00:00.00"
+et0 = utc2et(et0_str)
+etf = utc2et(et0_str)
+
+locate_x1, cparams = get_spice_locate_function(3, et0_str)
+locate_x2, _       = get_spice_locate_function(4, et0_str)
+locate_x3, _       = get_spice_locate_function(5, et0_str)
+
+# dynamics constants
 mu =  1.0
 μ_bodies = [1.e-4, 1.e-5, 1.e-7]
 r_bodies = [4.5e-5, 3e-5, 2e-5]
-
-function locate_x1(epoch::Float64)
-	# get position and velocity vector at epoch
-	xf = keplerder_nostm(mu, x01, 0.0, epoch, 1.e-14, 20)
-	return xf[1:3], xf[4:6]
-end
-
-function locate_x2(epoch::Float64)
-	# get position and velocity vector at epoch
-	xf = keplerder_nostm(mu, x02, 0.0, epoch, 1.e-14, 20)
-	return xf[1:3], xf[4:6]
-end
-
-function locate_x3(epoch::Float64)
-	# get position and velocity vector at epoch
-	xf = keplerder_nostm(mu, x03, 0.0, epoch, 1.e-14, 20)
-	return xf[1:3], xf[4:6]
-end
 
 visits = [
 	locate_x1, locate_x2, locate_x3
 ]
 
 # bounds on problem
-tof_max = 4π
-t0_bnds = [0.0, 4π]
-vinf0_max = 0.05
+tof_max = 10*365*86400/cparams.tstar
+tf = (etf - et0)/cparams.tstar
+t0_bnds = [0.0, tf]
+vinf0_max = 5.0/cparams.vstar
 
 # get objective function
 mga1dsm_problem!, lx, ux, ng, lg, ug = construct_mga1dsm_problem(
@@ -60,9 +62,9 @@ mga1dsm_problem!, lx, ux, ng, lg, ug = construct_mga1dsm_problem(
 
 ## run minimizer with IPOPT
 ip_options = Dict(
-    "max_iter" => 200,   # 1500 ~ 2500
+    "max_iter" => 1000,   # 1500 ~ 2500
     "print_level" => 5,
-    "tol" => 1e-6
+    "tol" => 1e-5,
 )
 x0 = rand(length(lx))
 xopt, fopt, info = minimize(mga1dsm_problem!, x0, ng; 
@@ -74,11 +76,9 @@ xopt, fopt, info = minimize(mga1dsm_problem!, x0, ng;
 	options=ip_options
 )
 
-println(xopt)
-println(info)
-
 # view solution
 visit_nodes, kepler_res, lamb_res, planets = view_mga1dsm_problem(
+	cparams,
 	xopt, 
 	visits,
 	mu,
