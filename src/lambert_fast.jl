@@ -38,8 +38,8 @@ end
 Fast lambert algorithm via Dario Izzo's method
 
 # Args
-	- `r1::Vector`: initial position vector
-	- `r2::Vector`: final position vector
+	- `r1_vec::Vector`: initial position vector
+	- `r2_vec::Vector`: final position vector
 	- `tof::Float64`: time of flight
 	- `m::Int` number of revolutions
 	- `μ::Float64`: gravitational parameter

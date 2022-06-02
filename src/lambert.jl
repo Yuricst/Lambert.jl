@@ -8,6 +8,7 @@ include("util_expressions.jl")
 include("keplerian_elements.jl")
 include("keplerder.jl")
 include("lambert_fast.jl")
+include("derivative_lambert.jl")
 include("canonical.jl")
 include("spice_helper.jl")
 
@@ -21,6 +22,7 @@ export FastLambertOut
 export pretty
 export propagate_arc
 export lambert_fast
+export lambert_jacobians
 export get_inclination,
     get_raan,
     get_eccentricity,
