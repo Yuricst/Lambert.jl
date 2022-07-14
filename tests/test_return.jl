@@ -10,7 +10,7 @@ gr()
 
 #push!(LOAD_PATH, "../")
 #using Lambert
-include("../src/Lambert.jl")
+include("../src/lambert.jl")
 
 # constants
 AU = 1.495978707e8
@@ -32,20 +32,18 @@ etf_str = "2040-01-01T00:00:00.00"
 et0 = utc2et(et0_str)
 etf = utc2et(et0_str)
 
-locate_x1, cparams = Lambert.get_spice_locate_function(3, et0_str)
-locate_x2, _       = Lambert.get_spice_locate_function(2, et0_str)
+locate_x1, cparams = Lambert.get_spice_locate_function(5, et0_str)
+locate_x2, _       = Lambert.get_spice_locate_function(5, et0_str)
 locate_x3, _       = Lambert.get_spice_locate_function(3, et0_str)
-locate_x4, _       = Lambert.get_spice_locate_function(5, et0_str)
 
 # dynamics constants
 mu =  1.0
 μ_bodies = [
-	MU_EARTH  / MU_SUN, 
-	MU_VENUS  / MU_SUN, 
-	MU_EARTH  / MU_SUN,
 	MU_SATURN / MU_SUN,
+	MU_SATURN / MU_SUN,
+    MU_EARTH  / MU_SUN,
 ]
-r_bodies = [4.5e-5, 3e-5, 2e-5, 1e-5]
+r_bodies = [4.5e-5, 3e-5, 2e-5]
 
 visits = [
 	locate_x1, locate_x2, locate_x3, locate_x4
@@ -125,3 +123,4 @@ display(ptraj)
 
 println("Done!")
 
+    

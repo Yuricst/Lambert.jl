@@ -6,7 +6,10 @@ MGA problem, no DSM
 """
     unpack_mga1dsm_x(x::Vector, np::Int)
 
-Unpack decision vector for mga1dsm problem
+Unpack decision vector for mga1dsm problem.
+    ```
+    direct encoding: [t0] + [u, v, Vinf, eta1, T1] + [beta, rp/rV, eta2, T2] + ... 
+    ```
 """
 function unpack_mga1dsm_x(x::Vector, np::Int)
     # launch parameters
@@ -14,13 +17,13 @@ function unpack_mga1dsm_x(x::Vector, np::Int)
     # phase parameters
     p_phases = []
     tofs = []
-    for i = 1:np
+    for i = 1:np  # iterate over each leg
         if i == 1
-            push!(p_phases, x[2+(i-1)*5:1+5i])
-            push!(tofs, x[6])
+            push!(p_phases, x[2:6])
+            push!(tofs, x[6])           # saving tof separately too
         else
-            push!(p_phases, x[7+(i-2)*4:4+6(i-1)])
-            push!(tofs, x[6+4(i-1)])
+            push!(p_phases, x[7+(i-2)*3:7+(i-1)*3])
+            push!(tofs, x[7+(i-1)*3])    # saving tof separately too
         end
     end
     return t0, p_phases, tofs
@@ -90,6 +93,7 @@ function construct_mga1dsm_problem(
 )
     # number of phases
     np = length(visits) - 1
+    println("Number of legs: $np")
 
     # define minimum tof
     tof_min = tof_min_ratio*tof_max
@@ -99,10 +103,11 @@ function construct_mga1dsm_problem(
     ux = vcat([t0_bnds[2]], [1.0, 1.0, vinf0_max, η_ub, tof_max])[:]
     if np > 1  # append to bounds vector
         for j = 1:np-1
-            lx = vcat(lx, [-π, 0.0, η_lb, tof_min])[:]
+            lx = vcat(lx, [-π, 1.0, η_lb, tof_min])[:]  # beta_min == 1.0
             ux = vcat(ux, [ π, Inf, η_ub, tof_max])[:]
         end
     end
+    println("Elements in lx: ", length(lx))
 
     # constraints information (on total time of flight)
     ng = 1
