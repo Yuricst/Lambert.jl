@@ -1,13 +1,23 @@
 # Lambert.jl
 Fast Lambert problem solver in Julia and associated optimization problem formulation. 
 
-### Dependencies
+## Quick start
 
-The module has dependencies to
-- `LinearAlgebra`, `Printf`
+1. `git clone` this repository
+2. start julia-repl
+3. activate & instantiate package (first time)
 
-The examples also make use of
-- [`joptimise`](https://github.com/Yuricst/joptimise), `Plots`
+```julia-repl
+pkg> activate .
+julia> using Pkg                # first time only
+julia> Pkg.instantiate()        # first time only
+```
+
+4. run tests
+
+```julia-repl
+(Lambert) pkg> test
+```
 
 ### Basic Lambert solver
 

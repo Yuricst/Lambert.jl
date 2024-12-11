@@ -12,14 +12,19 @@ struct FastLambertOut <: AbstractLambertOut
 end
 
 
-function pretty(LambertOut::AbstractLambertOut)
-    @printf("TOF: %1.4e\n", LambertOut.tof)
-    println("Departure: ")
-    @printf("r1: %1.4e %1.4e %1.4e\n", LambertOut.r1[1], LambertOut.r1[2], LambertOut.r1[3])
-    @printf("v1: %1.4e %1.4e %1.4e\n", LambertOut.v1[1], LambertOut.v1[2], LambertOut.v1[3])
-    println("Arrival: ")
-    @printf("r2: %1.4e %1.4e %1.4e\n", LambertOut.r2[1], LambertOut.r2[2], LambertOut.r2[3])
-    @printf("v2: %1.4e %1.4e %1.4e\n", LambertOut.v2[1], LambertOut.v2[2], LambertOut.v2[3])
+"""
+Overload method for showing OptimalControlSCPProblem
+"""
+function Base.show(io::IO, LambertOut::AbstractLambertOut)
+    println("Lambert problem solution structure")
+    @printf("   Exitflag  : %d\n", LambertOut.exitflag)
+    @printf("   TOF       : %1.4e\n", LambertOut.tof)
+    println("   Departure : ")
+    @printf("       r1 : %1.4e %1.4e %1.4e\n", LambertOut.r1[1], LambertOut.r1[2], LambertOut.r1[3])
+    @printf("       v1 : %1.4e %1.4e %1.4e\n", LambertOut.v1[1], LambertOut.v1[2], LambertOut.v1[3])
+    println("   Arrival : ")
+    @printf("       r2 : %1.4e %1.4e %1.4e\n", LambertOut.r2[1], LambertOut.r2[2], LambertOut.r2[3])
+    @printf("       v2 : %1.4e %1.4e %1.4e\n", LambertOut.v2[1], LambertOut.v2[2], LambertOut.v2[3])
 end
 
 
