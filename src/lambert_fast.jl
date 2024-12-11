@@ -3,7 +3,7 @@ abstract type AbstractLambertOut end
 
 struct FastLambertOut <: AbstractLambertOut
     μ::Float64
-    tof::Float64
+    tof::Real
     r1::Vector
     r2::Vector
     v1::Vector
@@ -32,7 +32,7 @@ end
     lambert_fast(
         r1_vec::Vector,
         r2_vec::Vector,
-        tof::Float64,
+        tof::Real,
         m::Int,
         μ::Float64,
         cw::Bool = false,
@@ -43,14 +43,14 @@ end
 Fast lambert algorithm via Dario Izzo's method
 
 # Args
-	- `r1_vec::Vector`: initial position vector
-	- `r2_vec::Vector`: final position vector
-	- `tof::Float64`: time of flight
-	- `m::Int` number of revolutions
-	- `μ::Float64`: gravitational parameter
-	- `cw::Bool`: use clockwise-motion, default is `false`
-	- `tol::Float64`: tolerance on Newton-Raphson
-	- `maxiter::Int`: max iteration on Newton-Raphson
+- `r1_vec::Vector`: initial position vector
+- `r2_vec::Vector`: final position vector
+- `tof::Real`: time of flight
+- `m::Int` number of revolutions
+- `μ::Float64`: gravitational parameter
+- `cw::Bool`: use clockwise-motion, default is `false`
+- `tol::Float64`: tolerance on Newton-Raphson
+- `maxiter::Int`: max iteration on Newton-Raphson
 
 # Returns
 	`FastLambertOut`: object containing output of lambert problem
@@ -58,7 +58,7 @@ Fast lambert algorithm via Dario Izzo's method
 function lambert_fast(
     r1_vec::Vector,
     r2_vec::Vector,
-    tof::Float64,
+    tof::Real,
     m::Int,
     μ::Float64,
     cw::Bool = false,
@@ -185,7 +185,7 @@ function lambert_fast(
 
     # --------------------------------------------------------- #
     # Newton-Raphson iterations
-    for iterations = 1:maxiter
+    for iter in 1:maxiter
         # update xnew
         xnew = (x1 * y2 - y1 * x2) / (y2 - y1)
         # copy-pasted code (for performance)
