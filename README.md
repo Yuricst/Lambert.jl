@@ -49,6 +49,6 @@ res.exitflag  # success (1) or fail (0)
 To display the summary, a practical method is to use
 
 ```julia
-pretty(res)
+display(res)
 ```
 

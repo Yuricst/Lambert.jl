@@ -19,7 +19,6 @@ include("optim/mga1dsm_problem.jl")
 include("optim/lamblt_problem.jl")
 
 export FastLambertOut
-export pretty
 export propagate_arc
 export lambert_fast
 export lambert_jacobians
