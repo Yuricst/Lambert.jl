@@ -83,8 +83,6 @@ function lambert_fast(
     mr2_vec = norm(r2_vec)
     r1crossr2 = cross(r1_vec, r2_vec)
     dθ = acos_safe(dot(r1_vec, r2_vec) / mr2_vec)
-    #dθ = acos( max(-1, min(1, (dot(r1_vec,r2_vec))/mr2_vec) ) )  # FIXME
-    #println("Initial dθ: $dθ")
     mcr = norm(r1crossr2)
     nrmunit = r1crossr2 / mcr 
 
@@ -183,7 +181,7 @@ function lambert_fast(
     # initialize error
     err = Inf
     # storage for x
-    x = 0
+    x = 0.0
 
     # --------------------------------------------------------- #
     # Newton-Raphson iterations
@@ -296,20 +294,15 @@ function lambert_fast(
 end
 
 
+"""Utility method for propagating a ballistic trajectory based on Lambert problem output"""
 function propagate_arc(
     LambertOut::AbstractLambertOut, 
-    steps::Int=500,
+    steps::Int=100,
     tol::Float64=1.e-14,
     maxiter::Int=20,
 )
     # take initial state vector
-    x0 = vcat(LambertOut.r1, LambertOut.v1)[:]
-    # construct dense time array
+    x0 = [LambertOut.r1; LambertOut.v1]
     ts = LinRange(0.0, LambertOut.tof, steps)
-    # propagate using Kepler-Der
-    # sol = zeros(6,steps)
-    # for (i,t) in enumerate(ts)
-    #     sol = keplerder_nostm(LambertOut.μ, x0, 0.0, ts, tol, maxiter)
-    # end
     return keplerder_nostm(LambertOut.μ, x0, 0.0, ts, tol, maxiter)
 end

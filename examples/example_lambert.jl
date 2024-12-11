@@ -25,8 +25,9 @@ for tof in tofs
 	display(res)
 
 	if res.exitflag == 1
-		teval = LinRange(0.0, tof, 100)
-		traj = Lambert.keplerder_nostm(mu, [r1vec; res.v1], 0.0, teval)
+		# teval = LinRange(0.0, tof, 100)
+		# traj = Lambert.keplerder_nostm(mu, [r1vec; res.v1], 0.0, teval)
+		traj = Lambert.propagate_arc(res)
 		lines!(ax, traj[1,:], traj[2,:], traj[3,:], color=:blue)
 	end
 end
