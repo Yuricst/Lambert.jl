@@ -15,7 +15,7 @@ tofs = LinRange(1.2, 10.0, 20)
 
 # prepare plot
 fig = Figure(size=(500,500))
-ax = Axis3(fig[1,1], xlabel="x", ylabel="y", zlabel="z")
+ax = Axis3(fig[1,1], xlabel="x", ylabel="y", zlabel="z", azimuth=deg2rad(120))
 scatter!(ax, [r1vec[1]], [r1vec[2]], [r1vec[3]], color=:green)
 scatter!(ax, [r2vec[1]], [r2vec[2]], [r2vec[3]], color=:red)
 

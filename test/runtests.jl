@@ -14,7 +14,6 @@ using Test
     tofs = LinRange(1.2, 10.0, 20)
 
     for tof in tofs
-
         res = Lambert.lambert_fast(r1vec, r2vec, tof, m, mu)
 		teval = LinRange(0.0, tof, 2)
 		traj = Lambert.keplerder_nostm(mu, [r1vec; res.v1], 0.0, teval)
